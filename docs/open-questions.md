@@ -36,6 +36,10 @@ Update this as we go.
       `logs-dlq` messages after fixing the cause.
 - [ ] **Schema / contract.** Consider a typed schema (e.g., JSON Schema or Avro +
       Schema Registry) for the log format to show data-contract awareness.
+- [ ] **Kafka producer idempotence (defense in depth).** Set `acks=all` +
+      `enable.idempotence=true` so producer retries can't write duplicates into the log.
+      Optional — our sink-side idempotency (deterministic `_id`) already covers it. See
+      [idempotency-and-reliability.md](idempotency-and-reliability.md) §8.
 - [ ] **Containerize the apps too.** Add the Java and Python services to
       docker-compose so the whole thing is one `up`.
 

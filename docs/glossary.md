@@ -13,6 +13,11 @@ Quick-reference vocabulary for the project. Fuller explanations live in
 - **Consumer** — a program that reads messages from a topic (our Python app).
 - **Consumer group** — a team of consumers sharing a `group_id`; Kafka delivers each
   message to exactly one member and auto-balances partitions across them.
+- **Rebalance** — Kafka re-dealing partitions among a consumer group's members when one
+  joins, leaves, or crashes. Automatic; can cause a brief pause and at-least-once
+  re-processing. See [scaling-and-backpressure.md](scaling-and-backpressure.md).
+- **Consumer lag** — `log-end-offset − current-offset` = how many messages a consumer
+  still hasn't processed. The key health/backpressure metric.
 - **Offset** — a message's sequential position in a partition (#0, #1, …); a
   consumer's "bookmark" of how far it has processed.
 - **Commit (offset commit)** — saving the bookmark. We do it *manually, after* a batch
@@ -29,11 +34,24 @@ Quick-reference vocabulary for the project. Fuller explanations live in
 - **Decoupling** — producer and consumer never call each other directly; they only
   share Kafka. One crashing can't crash the other.
 - **Backpressure** — when a downstream step is slow, work safely queues upstream
-  (in Kafka) instead of overwhelming anything.
+  (in Kafka) instead of overwhelming anything. In our pipeline it's automatic: the
+  synchronous index-then-commit loop + Kafka's pull model. See
+  [scaling-and-backpressure.md](scaling-and-backpressure.md).
 - **At-least-once delivery** — every message is processed at least once; may rarely be
   processed twice (never lost). Result of committing offsets *after* saving.
-- **Idempotency** — reprocessing the same message has no extra effect. We get it by
-  using the log's `id` as the OpenSearch document `_id`, so re-saves overwrite.
+- **At-most-once delivery** — commit *before* processing; never duplicates but can lose
+  messages on crash. (We do NOT use this.)
+- **Exactly-once** — each message effected exactly once; true end-to-end version needs
+  distributed transactions + a transactional sink. Hard/expensive.
+- **Effectively-once** — the pragmatic equivalent: at-least-once delivery + idempotent
+  processing. **This is what our pipeline does.**
+- **Idempotency** — reprocessing the same message has no extra effect. We get it by using
+  the log's `id` as the OpenSearch document `_id`, so re-saves overwrite. The pillar that
+  neutralizes the duplicates that retries/at-least-once create. See
+  [idempotency-and-reliability.md](idempotency-and-reliability.md).
+- **Idempotent producer** — Kafka's `enable.idempotence=true` (needs `acks=all`); dedupes
+  the producer's *own* retries into the log. Off in our config (`acks=1`); our sink-side
+  idempotency covers it anyway.
 - **Dead-letter queue (DLQ)** — a separate topic (`logs-dlq`) where unprocessable
   messages are quarantined so they don't crash the pipeline.
 
