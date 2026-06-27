@@ -310,3 +310,29 @@ worker drains the backlog without crashing.
 under load, not just claim them.
 
 **Trade-off:** None — it's a testing affordance.
+
+---
+
+## 18. Random UUIDs for log IDs (not sequential counters)
+
+**Decision:** Each log's `id` is a random UUID (`UUID.randomUUID()` in
+`LogSimulator`), not an incrementing counter.
+
+**Why:** In a distributed system, IDs should be generatable by any node
+independently, with no shared counter to coordinate and no collisions.
+
+**What makes it robust:**
+- **No shared state / no coordination.** A sequential counter would need a single
+  source of truth; multiple producers (or restarts) would race or duplicate it.
+- **Restart-safe.** The producer holds no state — stop and restart it and it keeps
+  minting fresh unique IDs. A counter would reset to 1 on restart (unless persisted)
+  and overwrite the previous run's documents in OpenSearch.
+- **Collision-free across runs and nodes.** ~122 bits of randomness make duplicates
+  effectively impossible, so two independent producers never clash.
+- **Pairs with idempotency (#14).** The id travels with the message through Kafka and
+  becomes the OpenSearch `_id`. If Kafka re-delivers the *same* message (at-least-once),
+  the same id overwrites harmlessly; genuinely new logs always get distinct ids.
+
+**Trade-off:** UUIDs aren't human-readable or time-ordered, and are larger than an
+integer. For log events that's fine — uniqueness and zero-coordination matter more
+than ordering (and the `timestamp` field already gives us time order).

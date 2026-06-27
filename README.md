@@ -76,41 +76,63 @@ The full reasoning — every decision, its trade-offs, and what makes it robust 
 - Python 3.10+
 - *(Phase 2 only)* [Ollama](https://ollama.com) with `ollama pull all-minilm`
 
-### 1. Start the infrastructure
+### Setup (one-time)
+Do this once after cloning. It pulls the Docker images and creates the Python
+virtual environment for the worker.
+
+```bash
+# from the repo root:
+
+# 1. Pre-pull the infrastructure images (Kafka, OpenSearch, Dashboards)
+docker compose pull
+
+# 2. Create the Python virtual environment and install the worker's dependencies
+cd consumer-python
+python3 -m venv .venv            # create an isolated environment in .venv/
+source .venv/bin/activate        # activate it (prompt shows "(.venv)")
+pip install --upgrade pip
+pip install -r requirements.txt  # installs kafka-python-ng, opensearch-py, requests
+cd ..
+```
+> The JDK is configured inside IntelliJ (JDK 21) — see Prerequisites above; nothing to
+> install on the command line for the Java side.
+
+### Running it
+Each run uses three terminals. Start them in this order.
+
+**Terminal 1 — infrastructure:**
 ```bash
 docker compose up -d
+curl http://localhost:9200        # sanity check: OpenSearch should respond with JSON
 ```
-- OpenSearch API: http://localhost:9200
-- Dashboards UI:  http://localhost:5601
-- Kafka broker:   localhost:9092
+- OpenSearch API: http://localhost:9200 · Dashboards UI: http://localhost:5601 · Kafka: localhost:9092
 
-Check OpenSearch is up: `curl http://localhost:9200`
-
-### 2. Start the Python worker
+**Terminal 2 — Python worker** (re-activate the venv in every new terminal):
 ```bash
 cd consumer-python
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+source .venv/bin/activate         # ← required each new terminal session
 python consumer.py
 ```
+It will print `worker up ...` and wait for messages.
 
-### 3. Run the Java producer (Spring Boot)
-**In IntelliJ:** open `producer-java/pom.xml` as a project, then run
-`ProducerApplication` (green ▶ next to `main`). Set the workload in the Run config's
-*Program arguments*, e.g. `--app.mode=spike --app.count=10000`.
+**Terminal 3 — Java producer (Spring Boot):**
+- **In IntelliJ:** open `producer-java/pom.xml` as a project, then run
+  `ProducerApplication` (green ▶ next to `main`). Set the workload in the Run config's
+  *Program arguments*, e.g. `--app.mode=spike --app.count=10000`.
+- **From the terminal** (requires `brew install maven`):
+  ```bash
+  cd producer-java
 
-**From the terminal** (requires `brew install maven`):
-```bash
-cd producer-java
+  # Steady stream — one log every 500ms (default):
+  mvn spring-boot:run
 
-# Steady stream — one log every 500ms (default):
-mvn spring-boot:run
+  # OR the stress test — blast 10,000 logs as fast as possible:
+  mvn spring-boot:run -Dspring-boot.run.arguments="--app.mode=spike --app.count=10000"
+  ```
 
-# OR the stress test — blast 10,000 logs as fast as possible:
-mvn spring-boot:run -Dspring-boot.run.arguments="--app.mode=spike --app.count=10000"
-```
+Once logs are flowing, Terminal 2 prints `indexed N (total N)` lines.
 
-### 4. Search your logs
+### Search your logs
 ```bash
 # Count everything indexed
 curl "http://localhost:9200/logs/_count"
