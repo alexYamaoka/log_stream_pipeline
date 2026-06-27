@@ -1,0 +1,23 @@
+spring:
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      # High-throughput tuning: ack from leader only, batch, compress.
+      acks: "1"
+      batch-size: 65536
+      properties:
+        linger.ms: 20
+        compression.type: snappy
+
+# Workload settings — override via Program arguments (--app.mode=spike)
+# or env vars (APP_MODE=spike APP_COUNT=10000).
+app:
+  mode: steady      # steady | spike
+  rate-ms: 500      # steady mode: delay between logs
+  count: 10000      # spike mode: how many logs to blast
+
+logging:
+  level:
+    org.apache.kafka: WARN   # quiet the noisy Kafka client logs

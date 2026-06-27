@@ -1,0 +1,12 @@
+# Java
+producer-java/target/
+
+# Python
+consumer-python/.venv/
+consumer-python/__pycache__/
+*.pyc
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
