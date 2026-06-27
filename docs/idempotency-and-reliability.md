@@ -109,6 +109,39 @@ idempotency to the **sink** rather than trying to prevent duplicates everywhere 
 - The sink operation must be an **overwrite/upsert by that key** (OpenSearch `index` with
   an explicit `_id` is exactly that).
 
+## 6b. What happens when the index write fails?
+
+The at-least-once guarantee depends on the offset commit being **skipped** when indexing
+fails — and it is. `helpers.bulk()` raises by default (`raise_on_error=True`) on:
+- **OpenSearch unreachable** (transport/connection error), or
+- **rejected documents** (`BulkIndexError`).
+
+Because it raises *on that line*, the next line never runs:
+```python
+helpers.bulk(client, actions)   # ← raises
+consumer.commit()               # ← never runs → offset NOT advanced
+```
+The offset stays put → Kafka redelivers those messages on the next run → **no loss**.
+
+**Partial failures are safe too.** A bulk request can index some docs and fail others.
+The successful ones are already in OpenSearch; since we don't commit, the restart
+reprocesses the *whole* batch — and idempotent `_id` writes overwrite the already-indexed
+docs harmlessly (another payoff of §6).
+
+**Honest current limitation.** The loop wraps only per-message *parsing* in `try/except`,
+not `bulk`/`commit`. So a bulk error **crashes the worker** instead of retrying. Data is
+safe (restart resumes from the last commit), but it's not graceful. Hardened version:
+```python
+if actions:
+    try:
+        helpers.bulk(client, actions)
+        consumer.commit()
+    except Exception as e:
+        log.warning("bulk failed; will retry batch", exc_info=e)
+        time.sleep(backoff)   # no commit → same batch retried next loop
+```
+Tracked in [open-questions.md](open-questions.md).
+
 ## 7. Producer-side vs consumer-side — the system-design summary
 
 | Layer | Who owns it | Mechanism | Status here |

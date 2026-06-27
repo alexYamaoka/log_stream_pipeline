@@ -6,6 +6,21 @@ Quick-reference vocabulary for the project. Fuller explanations live in
 ## Kafka
 
 - **Broker** — the Kafka server itself (our `kafka` Docker container).
+- **Cluster** — multiple brokers working together; partitions (and their replicas) are
+  spread across them. We run a single-broker "cluster."
+- **Replication factor (RF)** — how many copies of each partition exist, on different
+  brokers. RF=1 (ours) = no redundancy.
+- **Leader / follower** — per partition, the **leader** replica handles all reads/writes;
+  **followers** passively copy it. If the leader's broker dies, a follower is promoted.
+- **In-sync replica (ISR)** — a follower fully caught up with the leader; `acks=all` waits
+  for the ISR. See [kafka-reference.md](kafka-reference.md) §2b.
+- **Controller** — in KRaft, the node(s) managing cluster metadata (the "brain"). Production
+  keeps a small fixed set (3 or 5), separate from brokers, so brokers scale freely.
+- **Partition reassignment** — the controlled operation (`kafka-reassign-partitions.sh`)
+  that moves partitions/replicas across brokers — e.g., onto a newly added broker. Data
+  doesn't move itself. See [multi-broker-setup.md](multi-broker-setup.md).
+- **Cruise Control** — open-source tool that automates partition rebalancing/reassignment,
+  giving the "one-click scale" experience on self-managed clusters.
 - **Topic** — a named stream/"belt" of messages (e.g., `raw-logs`, `logs-dlq`).
 - **Partition** — a topic split into parallel lanes; the unit of parallelism. We
   currently have 1.

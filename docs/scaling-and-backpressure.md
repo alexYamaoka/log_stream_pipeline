@@ -236,3 +236,64 @@ reallocation, not an instant free lunch.)
 (how many partitions) is a human decision with lasting consequences** — a classic
 distributed-systems trade-off. See [open-questions.md](open-questions.md) for the
 "bump to 3 partitions" task this informs.
+
+---
+
+# Part 3: Operating safely — restarts, volumes & config changes
+
+"Can I just stop Kafka, change settings, and start it again?" Mostly yes — with caveats.
+The deciding factors are **(a) the data volume** and **(b) which setting you change.**
+
+## What is stored where (the mental model)
+
+- **OpenSearch is the durable system of record.** Once a log is indexed, it's safe
+  regardless of what happens to Kafka. Kafka is **not** a backup of OpenSearch.
+- **Kafka is a transient buffer** with time/size **retention** (default ~7 days), not
+  permanent storage. Don't treat it as a second copy of your data.
+- The only data **at risk** during Kafka maintenance is what's **in Kafka but not yet in
+  OpenSearch** (unprocessed / in-flight). It's protected as long as you keep the volume.
+- **Consumer offsets live in Kafka too** (the internal `__consumer_offsets` topic).
+  Wiping Kafka's volume wipes the bookmarks as well.
+
+So the "we have two stores, so we're fine" intuition is right *with one correction*: it's
+safe **as long as you don't wipe the Kafka volume**, and the truly durable store is
+**OpenSearch**, not Kafka.
+
+## What survives a restart
+
+| Action | Volume | Result |
+|---|---|---|
+| `docker compose restart kafka` | kept | topics, messages, offsets survive; consumer resumes from its committed offset |
+| `docker compose down` then `up` | kept (`kafka-data`) | same — all data survives |
+| `docker compose down -v` | **wiped** | all topics/messages/offsets **gone** (anything already in OpenSearch is still safe) |
+
+## Which config changes are safe
+
+| Change | How | Safe? |
+|---|---|---|
+| Add a topic / change retention | live or restart | ✅ easy |
+| **Add partitions** to a topic | `kafka-topics --alter` (live, no restart) | ✅ one-way; reshuffles key→partition (Part 2c) |
+| Heap, auto-create, most broker tunables | restart with volume kept | ✅ |
+| **Cluster identity** — `NODE_ID`, cluster id, process roles, listeners | — | ⚠️ can corrupt / fail startup on an existing data dir |
+| **Go from 1 broker to many** | not a value tweak — see below | ⚠️ real reconfiguration |
+
+## Adding brokers is NOT a simple value change
+
+Going multi-broker means: define multiple broker services (each a unique `NODE_ID`),
+configure the controller quorum voters, and — crucially — existing topics stay at
+**replication factor 1** until you run a **partition reassignment** to spread/replicate
+them. New brokers start **empty**; data doesn't move itself (Part 2d). It's a planned
+procedure, not "edit a number and restart."
+
+## A safe maintenance procedure
+
+1. (Optional) stop the producer to halt new inflow.
+2. Let the consumer drain until **lag = 0** (nothing unprocessed) — check with
+   `kafka-consumer-groups --describe`.
+3. `docker compose down` **without `-v`** (or `docker compose restart kafka`).
+4. Make only volume-safe config changes.
+5. `docker compose up -d`.
+6. Consumer reconnects and resumes from committed offsets.
+
+**Golden rules:** keep the volume, drain to zero lag before maintenance when you can, and
+treat **OpenSearch as the source of truth** with Kafka as a replaceable buffer.

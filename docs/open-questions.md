@@ -40,6 +40,10 @@ Update this as we go.
       `enable.idempotence=true` so producer retries can't write duplicates into the log.
       Optional — our sink-side idempotency (deterministic `_id`) already covers it. See
       [idempotency-and-reliability.md](idempotency-and-reliability.md) §8.
+- [ ] **Harden the consumer's bulk/commit.** Wrap `helpers.bulk` + `consumer.commit` in
+      try/except with retry + backoff so a transient OpenSearch error pauses-and-retries
+      instead of crashing the worker. See
+      [idempotency-and-reliability.md](idempotency-and-reliability.md) §6b.
 - [ ] **Containerize the apps too.** Add the Java and Python services to
       docker-compose so the whole thing is one `up`.
 
@@ -48,6 +52,8 @@ Update this as we go.
 - [ ] Whether to ever add Path B (wiki/RAG) as a second showcase, or keep this focused
       on the infra story.
 - [ ] Final partition count and whether to demonstrate a multi-broker Kafka cluster.
+      Walkthrough + production context in
+      [multi-broker-setup.md](multi-broker-setup.md).
 
 ## Housekeeping
 

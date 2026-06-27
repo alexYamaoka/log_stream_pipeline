@@ -45,6 +45,46 @@ partition = hash(key) % number_of_partitions
 Same key → same partition → guaranteed order for that key. In our code the key is the
 log's `id`, so each log's events stay ordered relative to themselves.
 
+## 2b. Clusters, replication, leaders & followers (redundancy)
+
+A **cluster** is several brokers (machines). Two different things spread across them:
+- **Partitions** spread the *data* → **scaling** (more brokers/partitions = more
+  throughput & storage).
+- **Replicas** duplicate each partition onto *other* brokers → **redundancy / HA**.
+
+**Replication factor (RF)** = how many copies of each partition exist, on different
+brokers. RF=3 → 3 copies. For each partition:
+- one replica is the **leader** — handles ALL reads & writes;
+- the others are **followers** — passively copy the leader to stay current;
+- followers that are caught up form the **in-sync replicas (ISR)**.
+
+**Failover:** if a leader's broker dies, Kafka auto-promotes an in-sync follower to
+leader → no downtime, no loss. (This is exactly what `acks=all` leans on — it waits for
+the ISR to also have the message.)
+
+**Key insight — scaling and backup are the SAME machines.** Every broker is
+simultaneously the *leader* for some partitions (doing work) and a *follower* for others
+(holding backups). No broker is "just a backup." Example — 3 brokers, 3 partitions, RF=2:
+```
+            P0          P1          P2
+Broker 1:   LEADER      follower    —
+Broker 2:   —           LEADER      follower
+Broker 3:   follower    —           LEADER
+```
+Each broker leads one partition and backs up another. Lose Broker 1 → P0's follower on
+Broker 3 is promoted to leader; P0 stays available.
+
+**Two independent dials:**
+
+| You want… | Turn up… |
+|---|---|
+| Scale (throughput, storage) | brokers + partitions |
+| Safety (survive a failure) | replication factor |
+
+**Our setup:** 1 broker, RF=1 → no followers, no redundancy, no scaling. A single-node
+*simulation* — same code/concepts as production, none of the HA benefits. (Also why
+`acks=1` and `acks=all` behave identically here — there are no replicas to wait for.)
+
 ## 3. What you can do with Kafka (capabilities)
 
 - **Decouple** producers from consumers (different speeds, languages, lifecycles).

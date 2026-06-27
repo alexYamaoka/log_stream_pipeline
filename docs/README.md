@@ -20,6 +20,11 @@ defend out loud.
 9. [glossary.md](glossary.md) — keep open as a lookup throughout (not a linear read)
 10. [open-questions.md](open-questions.md) — what's left / next steps
 
+**Optional deep-dive (advanced):**
+[multi-broker-setup.md](multi-broker-setup.md) — simulating a 3-broker cluster locally +
+how broker scaling actually works in production (controllers vs brokers, reassignment,
+Cruise Control / operators / managed Kafka).
+
 The **-explained** docs teach the concepts from zero; the **-reference** docs are the
 practical "how to use it + syntax" companions.
 
@@ -35,6 +40,7 @@ practical "how to use it + syntax" companions.
 | [opensearch-reference.md](opensearch-reference.md) | OpenSearch *reference*: data model, Query DSL syntax, aggregations, kNN, how our code connects |
 | [scaling-and-backpressure.md](scaling-and-backpressure.md) | Runtime behavior under load: backpressure mechanism, consumer rebalancing, adding partitions/brokers + the gotchas |
 | [idempotency-and-reliability.md](idempotency-and-reliability.md) | Failure handling: delivery guarantees, where duplicates come from, Kafka vs. our idempotency, effectively-once, how it enables scaling |
+| [multi-broker-setup.md](multi-broker-setup.md) | *Advanced:* simulating a 3-broker cluster locally + how production scales brokers (controllers vs brokers, reassignment, tooling) |
 | [glossary.md](glossary.md) | Quick-reference vocabulary |
 | [open-questions.md](open-questions.md) | Things we haven't done yet / decisions still open / next steps |
 
