@@ -25,6 +25,12 @@ defend out loud.
 how broker scaling actually works in production (controllers vs brokers, reassignment,
 Cruise Control / operators / managed Kafka).
 
+**System-design interview prep (general, not project-specific):**
+[capacity-and-throughput.md](capacity-and-throughput.md) — estimating requests/sec (the
+"drop 5 zeros" trick), scale tiers, and this project's throughput ·
+[scaling-playbook.md](scaling-playbook.md) — scaling reads vs. writes, choosing a database,
+the trade-offs.
+
 The **-explained** docs teach the concepts from zero; the **-reference** docs are the
 practical "how to use it + syntax" companions.
 
@@ -41,6 +47,8 @@ practical "how to use it + syntax" companions.
 | [scaling-and-backpressure.md](scaling-and-backpressure.md) | Runtime behavior under load: backpressure mechanism, consumer rebalancing, adding partitions/brokers + the gotchas |
 | [idempotency-and-reliability.md](idempotency-and-reliability.md) | Failure handling: delivery guarantees, where duplicates come from, Kafka vs. our idempotency, effectively-once, how it enables scaling |
 | [multi-broker-setup.md](multi-broker-setup.md) | *Advanced:* simulating a 3-broker cluster locally + how production scales brokers (controllers vs brokers, reassignment, tooling) |
+| [capacity-and-throughput.md](capacity-and-throughput.md) | *Interview prep:* estimating requests/sec (drop-5-zeros trick), scale tiers, component ceilings, this project's throughput |
+| [scaling-playbook.md](scaling-playbook.md) | *Interview prep:* scaling reads vs. writes, choosing a database (Postgres vs sharded SQL vs DynamoDB), trade-offs |
 | [glossary.md](glossary.md) | Quick-reference vocabulary |
 | [open-questions.md](open-questions.md) | Things we haven't done yet / decisions still open / next steps |
 

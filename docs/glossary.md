@@ -95,6 +95,21 @@ Quick-reference vocabulary for the project. Fuller explanations live in
 - **Ollama** — runs small models locally; we'd use it for embeddings in phase 2
   (e.g., `all-minilm`, 384-dim).
 
+## System design / scaling
+
+- **Throughput (RPS / QPS)** — requests/queries handled per second. The number that drives
+  the whole design. See [capacity-and-throughput.md](capacity-and-throughput.md).
+- **Latency** — how long a single request takes (a different axis from throughput).
+- **Sharding / partitioning** — splitting data across nodes so each holds a slice; the way you
+  scale *writes*.
+- **Read replica** — a copy of a database that serves reads only; scales reads, not writes.
+- **CAP theorem** — under a network partition a distributed store must choose Consistency or
+  Availability. Dynamo/Cassandra lean **AP** (available, eventually consistent).
+- **Eventual consistency** — replicas converge to the same value over time, not instantly;
+  acceptable for feeds/logs, not for balances.
+- **Sharded/NoSQL store** — DynamoDB, Cassandra: sharding built in ("sharding-as-a-service");
+  scales writes, trades away easy joins/transactions. See [scaling-playbook.md](scaling-playbook.md).
+
 ## Java / Spring
 
 - **Spring Boot** — Java framework that auto-configures components from `application.yml`
