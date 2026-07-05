@@ -49,6 +49,21 @@ Most systems are **read-heavy** (often 100:1 or 1000:1 reads:writes), so a syste
      Aurora Limitless. Keeps SQL/transactions, adds sharding.
    - **Natively-sharded NoSQL** — DynamoDB, Cassandra. Sharding is built in.
 
+### Which steps are universal vs. relational-specific
+- **Vertical scaling** and **queuing** are **universal** — they sit in front of *any*
+  database, relational or NoSQL.
+- **Sharding** is where they differ: for **relational** it's a deliberate *later* step you
+  add; for **NoSQL** (Dynamo/Cassandra) it's *built in from day one* — you never "then
+  shard," you scale by adding nodes.
+- So "vertical → queue → shard" is the **evolution story of a system that *began*
+  relational.** A natively-sharded store starts at the finish line for sharding.
+
+### The queue's limit (important)
+A queue absorbs **bursts** and lets a slow sink **drain steadily** — but it does **not raise
+the sink's sustained ceiling.** If the *sustained* write rate exceeds sink capacity, the
+backlog grows forever. The queue buys **time and smoothing, not capacity**; a true sustained
+shortfall still forces sharding / adding nodes. True for any sink (Postgres or Cassandra).
+
 ## 4. The "two kinds of cluster" trap (important!)
 
 People say "cluster" for two very different things:
@@ -73,7 +88,63 @@ writes ─┬──► Node A (partition keys 0–33)   ← each node accepts wr
 **Key insight:** DynamoDB/Cassandra are **"sharding-as-a-service"** — they *are* the sharding,
 just managed and automatic.
 
-## 5. Choosing a database — the decision framework
+## 5. How sharding a relational DB actually works
+
+When vertical scaling + queuing aren't enough, sharding Postgres is a **data migration + an
+app-layer change**, not a config toggle. That's why it's the last resort.
+
+**What it means:** split rows across multiple independent Postgres primaries, each owning a
+subset chosen by a **shard key**:
+```
+Before:  [ ONE Postgres ]   ← all rows, all writes
+After:   [ Postgres A ] key % 3 == 0
+         [ Postgres B ] key % 3 == 1     → ~3× write capacity
+         [ Postgres C ] key % 3 == 2
+```
+
+**Three hard parts:**
+1. **Choose a shard key** — the column you split on (`user_id`, `tenant_id`). The most
+   consequential, hardest-to-change decision. Needs even distribution (no hot shards) and
+   should appear in most queries.
+2. **Move all existing data** — every row relocated to its target shard. *This is the
+   "migrate the whole database" part — yes, literally.*
+3. **Make the app shard-aware** — every query must route to the right shard; queries *without*
+   the shard key become "scatter-gather" (hit all shards); cross-shard JOINs/transactions get
+   hard or impossible.
+
+**The zero-downtime migration pattern (dual-write + backfill + cutover):**
+```
+1. Provision N shard instances.
+2. DUAL-WRITE: app writes to BOTH the old DB and the new shards.
+3. BACKFILL: copy historical rows to their target shard (background job).
+4. VERIFY: reconcile old vs new (counts, checksums).
+5. SHIFT READS gradually (canary a %).
+6. CUT OVER: stop writing to old; decommission it.
+```
+For a large DB this is often a multi-week project — hence "last resort."
+
+**Re-sharding later is worse.** With naive `hash(key) % N`, adding a shard (N→N+1) remaps
+almost every key → you move nearly all the data again. Mitigations:
+- **Consistent hashing** — only a fraction of keys move when you add a node.
+- **Pre-split into many logical shards** — e.g., 1,024 logical shards on 4 machines; add
+  capacity by moving whole logical shards, no per-key recompute. (Instagram/Notion do this.)
+
+**You rarely hand-roll it** — most teams adopt tooling:
+
+| Option | What it does |
+|---|---|
+| **Citus** (Postgres extension) | Declare a distribution column; shards + routes automatically; `rebalance` to add nodes |
+| **Vitess** (MySQL) | Same idea; powers YouTube, Slack |
+| **CockroachDB / Spanner / Yugabyte** | Distributed SQL — auto-shards under one SQL interface (avoid manual sharding by choosing these) |
+| **Aurora Limitless** (AWS) | Managed sharded Postgres-compatible |
+
+**Recurring theme:** the shard key is the *same concept* as Kafka's partition key and
+DynamoDB's partition key — always "which key decides which node holds this data." Choosing it
+well (even distribution, present in your access patterns, hard to change later) is the core
+distributed-systems skill, and the "re-sharding is painful" pain mirrors Kafka's one-way
+partition-count decision.
+
+## 6. Choosing a database — the decision framework
 
 Don't answer "which DB?" with the raw number. Use **access pattern + consistency + whether
 scale is known/sustained.**
@@ -101,7 +172,7 @@ Are the writes BURSTY rather than sustained?
   pattern, designing a Postgres system you know will fail is the *wrong* answer — pick
   DynamoDB/Cassandra up front.
 
-## 6. The trade-offs you accept when you shard / go NoSQL
+## 7. The trade-offs you accept when you shard / go NoSQL
 
 - **Hard cross-shard joins & transactions** — data on different nodes can't be joined or
   updated atomically easily.
@@ -112,7 +183,7 @@ Are the writes BURSTY rather than sustained?
 So: use relational as long as you can (transactions, joins, one box is simpler); move
 write-heavy data to a sharded/NoSQL store only when volume forces you.
 
-## 7. Managed AWS options (quick reference)
+## 8. Managed AWS options (quick reference)
 
 | Service | Type | Scales | Good for |
 |---|---|---|---|
@@ -123,7 +194,7 @@ write-heavy data to a sharded/NoSQL store only when volume forces you.
 | Keyspaces (Cassandra) | Managed wide-column | reads **+ writes** | write-heavy, time-series/logs |
 | ElastiCache (Redis) | In-memory cache | reads | hot-read caching |
 
-## 8. The interview script
+## 9. The interview script
 
 ```
 1. Clarify: scale (sustained vs peak), access pattern, consistency needs.
@@ -137,7 +208,7 @@ write-heavy data to a sharded/NoSQL store only when volume forces you.
 Interviewers reward **"it depends, here's my decision tree"** over dogmatic "always Postgres"
 or "always Dynamo at 10K."
 
-## 9. This project is a live example
+## 10. This project is a live example
 
 You've already used this playbook:
 - **Kafka in front of OpenSearch** = write playbook step 2 (queue absorbs write bursts so the
