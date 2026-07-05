@@ -10,3 +10,7 @@ consumer-python/__pycache__/
 .DS_Store
 .idea/
 .vscode/
+
+# Personal scratch files (not part of the project)
+python_to_java_cheatsheet.html
+python_to_java_cheatsheet.pdf
