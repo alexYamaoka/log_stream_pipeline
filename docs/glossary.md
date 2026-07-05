@@ -97,6 +97,12 @@ Quick-reference vocabulary for the project. Fuller explanations live in
 
 ## System design / scaling
 
+- **Distributed system** — multiple components coordinating over a network to act as one.
+  Defined by the architecture, **not** the database — a distributed system can run on a single
+  DB. See [scaling-playbook.md](scaling-playbook.md).
+- **Stateless vs. stateful** — stateless components (app servers) hold no data between
+  requests → trivial to distribute (just add copies). Stateful components (databases) hold
+  data → hard to distribute → distributed *last*.
 - **Throughput (RPS / QPS)** — requests/queries handled per second. The number that drives
   the whole design. See [capacity-and-throughput.md](capacity-and-throughput.md).
 - **Latency** — how long a single request takes (a different axis from throughput).

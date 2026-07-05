@@ -9,6 +9,35 @@ load) — this doc is what to *do* with that number.
 
 ---
 
+## Distributed system ≠ distributed database
+
+A **distributed system** is defined by multiple components coordinating **over a network** —
+it says nothing about the database. So you can (and usually do) run a **distributed system on
+a single database.**
+
+- **Stateless app servers** (behind a load balancer) are trivial to distribute — just run
+  more identical copies. This alone already makes the system distributed.
+- **Databases are stateful** → hard to distribute (the sharding pain in §5). So the DB stays
+  centralized as long as possible and is distributed **last**, only when write volume forces it.
+
+```
+        ┌─ app 1 ─┐
+users ─►│  app 2   ├─► ONE MySQL       ← still a distributed system;
+   LB   └─ app 3 ─┘   (single primary)    the distribution is in the app tier
+```
+
+"MySQL cluster" is a spectrum, and a distributed system can sit on any rung:
+
+| DB setup | DB itself distributed? | Scales |
+|---|---|---|
+| 1 MySQL instance | No (centralized) | one node |
+| MySQL + read replicas | Partially (1 write primary) | reads + HA, **not** writes |
+| Sharded MySQL (Vitess) | Yes (distributed writes) | reads + writes |
+
+**This project** is a distributed system (Java → Kafka → Python → OpenSearch, all separate
+processes over the network) with a **single-node** OpenSearch — i.e., a distributed *system*
+with a non-distributed *database*. The distribution is in the pipeline, not the storage.
+
 ## 1. The golden rule
 
 **Reads and writes scale completely differently. Writes are the hard problem.**
