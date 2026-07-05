@@ -76,7 +76,55 @@ Example: 10M users × 10 actions = 100M/day → drop 5 zeros → 1,000/sec → �
 Two anchors: **~10K writes/sec** = "single DB stops keeping up → shard + queue" (most
 important line). **~1M RPS** = big-tech infra.
 
-## 5. Component ceilings (order of magnitude, single node)
+## 5. Worked examples: S / M / L / XL
+
+Assumptions (only DAU changes): **100 reads/day + 10 writes/day** per user (10:1),
+**peak = 3× average.** Watch the drop-5-zeros trick.
+
+**🟢 Small — 10K DAU (internal tool / early startup)**
+```
+Reads:  10K × 100 = 1,000,000/day → drop 5 zeros → 10/sec → ×3 = ~30/sec peak
+Writes: 10K × 10  =   100,000/day → drop 5 zeros →  1/sec → ×3 =  ~3/sec peak
+```
+→ **One DB, no cache, no queue.** Anything more is over-engineering.
+
+**🟡 Medium — 1M DAU (growing product)**
+```
+Reads:  1M × 100 = 100,000,000/day → 1,000/sec → ×3 = ~3,000/sec peak
+Writes: 1M × 10  =  10,000,000/day →   100/sec → ×3 =   ~300/sec peak
+```
+→ Writes trivial for one primary. Reads climbing → **add a Redis cache** (+ maybe a read
+replica). Still one primary, no sharding, no queue.
+
+**🟠 Large — 50M DAU (popular app) — the inflection point**
+```
+Reads:  50M × 100 = 5,000,000,000/day → 50,000/sec → ×3 = ~150,000/sec peak
+Writes: 50M × 10  =   500,000,000/day →  5,000/sec → ×3 =  ~15,000/sec peak
+```
+→ Reads ~150K/s: **cache cluster + read replicas + CDN.** Writes ~5K sustained / ~15K peak
+at the single-primary edge → **queue for bursts + begin sharding** (distributed SQL / NoSQL).
+
+**🔴 XL — 500M DAU (Twitter-scale) — fully distributed**
+```
+Reads:  500M × 100 = 50,000,000,000/day → 500,000/sec → ×3 = ~1,500,000/sec peak
+Writes: 500M × 10  =  5,000,000,000/day →  50,000/sec → ×3 =   ~150,000/sec peak
+```
+→ Reads ~1.5M/s: CDN + multi-layer cache + many replicas, likely multi-region. Writes
+~150K/s: **sharded NoSQL / heavily-sharded SQL + Kafka.** No single primary.
+
+**Summary**
+
+| Scale | Reads/s (peak) | Writes/s (peak) | Architecture |
+|---|---|---|---|
+| Small 10K DAU | ~30 | ~3 | 1 DB, nothing else |
+| Medium 1M DAU | ~3K | ~300 | 1 DB **+ cache** |
+| Large 50M DAU | ~150K | ~15K | cache + replicas + CDN; **queue + shard writes** |
+| XL 500M DAU | ~1.5M | ~150K | fully distributed: CDN + cache + **sharded/NoSQL + Kafka** |
+
+The move is driven by **where each number lands**, not a fixed template — and reads/writes
+are handled differently (cache reads, shard writes).
+
+## 6. Component ceilings (order of magnitude, single node)
 
 | Component | Rough ceiling |
 |---|---|
@@ -89,7 +137,7 @@ important line). **~1M RPS** = big-tech infra.
 
 Kafka & Redis are 10–100× a SQL DB — which is *why* high-throughput designs lean on them.
 
-## 6. Reads vs. writes scale differently
+## 7. Reads vs. writes scale differently
 
 - **Reads** are cheap: cache + read replicas. Ceiling is high and easy to raise.
 - **Writes** are the hard constraint: every write hits the authoritative copy; scaling means
@@ -98,7 +146,7 @@ Kafka & Redis are 10–100× a SQL DB — which is *why* high-throughput designs
 So split any RPS into reads vs writes and **worry mostly about the writes.** Details in
 [scaling-playbook.md](scaling-playbook.md).
 
-## 7. This project's throughput (bottleneck analysis)
+## 8. This project's throughput (bottleneck analysis)
 
 Find the slowest stage — that's the real throughput:
 
@@ -120,7 +168,7 @@ Java producer → Kafka → Python consumer → OpenSearch
 producer can burst faster and Kafka absorbs the difference — which is the whole point of the
 decoupling.
 
-## 8. Scaling this project further (walk the bottleneck = consumer→OpenSearch)
+## 9. Scaling this project further (walk the bottleneck = consumer→OpenSearch)
 
 - **Parallelize the consumer:** bump `raw-logs` to N partitions + run N consumers (same group)
   → near-linear speedup. Swap `kafka-python-ng` for `confluent-kafka` (librdkafka, faster).
@@ -130,7 +178,7 @@ decoupling.
   (indexing ceiling).
 - **If embeddings are on:** batch them, use a GPU, or a dedicated embedding service.
 
-## 9. Interview mindset
+## 10. Interview mindset
 
 - You need **order-of-magnitude estimates + the method**, not exact numbers.
 - **State assumptions** (DAU, actions/user, peak ×) out loud.
