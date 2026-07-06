@@ -1,3 +1,89 @@
+# LogStream Pipeline — The Project
+
+Consolidated project documentation: what we built, why, and what's next.
+
+**Companion docs:** `DISTRIBUTED-SYSTEMS.md` (how the tech works, deep dives) ·
+`SYSTEM-DESIGN-NOTES.md` (interview prep). Cross-references to other doc names now
+refer to sections within these three files.
+
+## Contents
+1. **Overview** — what we're building, architecture, caveats
+2. **Design Decisions & Rationale** — every choice + why + trade-offs
+3. **Open Questions & Next Steps**
+
+---
+
+# Project Overview
+
+## What we're building
+
+A **real-time distributed data pipeline** that ingests a high-throughput stream of
+application logs, buffers them safely, processes them, and stores them in a way
+that's searchable — all running locally on a single laptop via Docker.
+
+The folder is named `log_streams` because we chose the **system-logs / infrastructure**
+flavor of the project (see design-decisions.md, "Path A vs Path B").
+
+## The data flow
+
+```
+[Mock log generator]    [Buffer / shock absorber]   [Worker]              [Searchable store]
+   Java Producer  ─────►   Apache Kafka   ─────►   Python Consumer  ─────►   OpenSearch
+   (Spring Boot)          (holds messages)         (batch + index)          (stores + serves search)
+```
+
+| Stage | Tech | Job |
+|-------|------|-----|
+| **Ingestor** | Java / Spring Boot | Generate realistic fake logs and push them into Kafka fast |
+| **Broker** | Apache Kafka | Hold the stream safely so nothing drops if the worker is slow |
+| **Processor** | Python | Pull text, batch it, index it (optionally embed it) |
+| **Storage** | OpenSearch | Store logs so you can full-text + filter search them |
+
+## What this project is really about
+
+The headline isn't "AI." It's **distributed systems**. The pipeline is designed to
+*demonstrate* these production concepts on a laptop:
+
+- **Decoupling** — each component is its own process/container, talking only over the
+  network. Any one can crash without taking the others down.
+- **Fault tolerance** — Kafka persists messages to disk, so a crashed worker loses nothing.
+- **Backpressure** — if the slow part (indexing) bogs down, the backlog safely piles up
+  in Kafka instead of overwhelming anything.
+- **Horizontal scaling** — run multiple identical workers and Kafka auto-balances the load.
+- **Dead-letter queue** — bad messages are quarantined, not allowed to crash the pipeline.
+
+## Why two languages?
+
+It mirrors how real companies actually build these systems:
+- **Java** for high-throughput, low-latency ingestion.
+- **Python** for the data/ML processing.
+
+This polyglot split is itself a portfolio talking point, and it sets up the
+"asymmetric scaling" story — ingestion and processing have very different
+performance profiles, so being able to scale them independently is the point.
+
+## Who it's for (the resume angle)
+
+- **Infra / Platform engineering teams** ← this project, as built (Path A).
+  Emphasizes high-throughput streaming, fault tolerance, and scaling.
+- An alternate "Path B" (wiki documents + vector DB) would target **AI Application**
+  teams instead. We chose Path A; see design-decisions.md.
+
+## Important honest caveats
+
+- **We are *simulating* a distributed cluster, not running a real one.** Everything
+  is one node each (1 Kafka broker, 1 OpenSearch node, 1 partition). The *code and
+  architecture* are identical to production; the scale is not. Be precise about this
+  distinction when describing the project — claiming a "distributed Raft cluster" on a
+  laptop with one node is overselling it.
+- **Nothing has been run/verified end-to-end yet** as of writing these docs. The code
+  is scaffolding. First real compile happens when IntelliJ imports the Java project.
+- **The data is simulated.** We generate fake logs rather than ingesting real ones —
+  this is intentional and good (full control over throughput for stress tests).
+
+
+---
+
 # Design Decisions & Rationale
 
 This is the heart of the docs: every meaningful decision, *why* we made it, what
@@ -293,7 +379,7 @@ coordination code.**
 
 **Trade-off / current limitation:** We have only **1 partition**, so only one worker
 gets work at a time. To actually demonstrate parallelism, create `raw-logs` with
-multiple partitions (e.g., 3). See [open-questions.md](open-questions.md).
+multiple partitions (e.g., 3). See open-questions.md.
 
 ---
 
@@ -336,3 +422,67 @@ independently, with no shared counter to coordinate and no collisions.
 **Trade-off:** UUIDs aren't human-readable or time-ordered, and are larger than an
 integer. For log events that's fine — uniqueness and zero-coordination matter more
 than ordering (and the `timestamp` field already gives us time order).
+
+
+---
+
+# Open Questions & Next Steps
+
+Things not yet done, decisions still open, and ideas to level up the project.
+Update this as we go.
+
+## Not yet verified
+
+- [ ] **Nothing has been run end-to-end.** The code is scaffolding. First Java compile
+      happens when IntelliJ imports the project.
+- [ ] Confirm the Docker stack comes up cleanly (`docker compose up -d`) and OpenSearch
+      responds (`curl localhost:9200`).
+- [ ] Push real messages through and confirm the count climbs
+      (`curl localhost:9200/logs/_count`).
+- [ ] Confirm IntelliJ runs `ProducerApplication` on JDK 21 without
+      `UnsupportedClassVersion`-type errors.
+
+## Known limitations to address
+
+- [ ] **Single partition.** `raw-logs` has 1 partition, so multiple workers can't run
+      in parallel. To demonstrate horizontal scaling, create the topic with ~3
+      partitions and run 2–3 `consumer.py` instances with the same `GROUP_ID`.
+- [ ] **No replication / HA.** Single Kafka broker and single OpenSearch node. Expected
+      for a laptop simulation — just be precise that it's a simulation, not a real
+      distributed cluster.
+
+## Enhancement ideas (portfolio level-ups)
+
+- [ ] **Phase 2: semantic search.** Turn on `USE_EMBEDDINGS=true`, pull `all-minilm`
+      via Ollama, and demonstrate **hybrid search** (full-text + kNN) — "find logs
+      similar to this incident."
+- [ ] **Dashboards visualizations.** Build a few OpenSearch Dashboards panels (errors
+      over time, errors by service) for portfolio screenshots.
+- [ ] **Metrics/observability.** Expose consumer lag or throughput numbers to make the
+      backpressure story visible.
+- [ ] **Replay tooling for the DLQ.** A small script to inspect and re-submit
+      `logs-dlq` messages after fixing the cause.
+- [ ] **Schema / contract.** Consider a typed schema (e.g., JSON Schema or Avro +
+      Schema Registry) for the log format to show data-contract awareness.
+- [ ] **Kafka producer idempotence (defense in depth).** Set `acks=all` +
+      `enable.idempotence=true` so producer retries can't write duplicates into the log.
+      Optional — our sink-side idempotency (deterministic `_id`) already covers it. See
+      idempotency-and-reliability.md §8.
+- [ ] **Harden the consumer's bulk/commit.** Wrap `helpers.bulk` + `consumer.commit` in
+      try/except with retry + backoff so a transient OpenSearch error pauses-and-retries
+      instead of crashing the worker. See
+      idempotency-and-reliability.md §6b.
+- [ ] **Containerize the apps too.** Add the Java and Python services to
+      docker-compose so the whole thing is one `up`.
+
+## Decisions still open
+
+- [ ] Whether to ever add Path B (wiki/RAG) as a second showcase, or keep this focused
+      on the infra story.
+- [ ] Final partition count and whether to demonstrate a multi-broker Kafka cluster.
+      Walkthrough + production context in
+      multi-broker-setup.md.
+
+## Housekeeping
+
+- [ ] Project is **not a git repo yet.** Run `git init` + first commit when ready.

@@ -49,9 +49,10 @@ Every design choice has a deliberate reason — these are the highlights:
 - **Horizontal scaling for free.** Run multiple workers in one Kafka consumer group and
   Kafka auto-balances the load.
 
-The full reasoning — every decision, its trade-offs, and what makes it robust — lives in
-**[`docs/`](docs/README.md)**. Start with
-[`docs/design-decisions.md`](docs/design-decisions.md).
+The full reasoning lives in **[`docs/`](docs/)**, organized into three files:
+- **[docs/PROJECT.md](docs/PROJECT.md)** — overview, every design decision + trade-offs, next steps
+- **[docs/DISTRIBUTED-SYSTEMS.md](docs/DISTRIBUTED-SYSTEMS.md)** — how Kafka, OpenSearch, reliability & scaling work (from zero) + glossary
+- **[docs/SYSTEM-DESIGN-NOTES.md](docs/SYSTEM-DESIGN-NOTES.md)** — capacity estimation + scaling playbook (interview prep)
 
 ## Distributed-systems concepts demonstrated
 
@@ -158,7 +159,7 @@ Or explore visually in Dashboards (http://localhost:5601 → Discover).
 ├── docker-compose.yml      # Kafka + OpenSearch + Dashboards
 ├── producer-java/          # Spring Boot Kafka producer (the ingestor)
 ├── consumer-python/        # Python Kafka→OpenSearch worker (the processor)
-└── docs/                   # design decisions, ground-up explanations, glossary
+└── docs/                   # PROJECT · DISTRIBUTED-SYSTEMS · SYSTEM-DESIGN-NOTES
 ```
 
 ## Phase 2 (optional): semantic search
@@ -180,7 +181,7 @@ docker compose down -v     # also wipe Kafka + OpenSearch volumes
 ## Status
 
 Early scaffolding — the architecture and code are in place but **not yet verified
-end-to-end**. See [`docs/open-questions.md`](docs/open-questions.md) for the current
-checklist and next steps. This is a learning + portfolio project; it *simulates* a
+end-to-end**. See the "Open Questions & Next Steps" section of
+[`docs/PROJECT.md`](docs/PROJECT.md) for the current checklist and next steps. This is a learning + portfolio project; it *simulates* a
 distributed cluster on a single machine (one broker, one node, one partition) using the
 same code and architecture you'd deploy at scale.
