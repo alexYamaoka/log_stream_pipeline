@@ -116,6 +116,59 @@ Example: 5,000 logs/s → 500,000,000 logs/day × 1 KB → drop 6 zeros → **50
 | TB/day | distributed storage, **retention**, **tiering** (hot/warm/cold), compression, object storage (S3) |
 | PB total | big-data infra (data lakes, columnar) |
 
+### Object storage (S3)
+
+Once storage is large or cheap-and-durable matters, the answer is usually **object
+storage** (AWS S3, GCS, Azure Blob). Store **objects** (a blob + metadata) in **buckets**,
+keyed by a string, over an HTTP API.
+
+**Mental model — what it is NOT:**
+- Not a **filesystem** — no real folders ("path" is just a key prefix); no in-place edit or
+  append (you replace the whole object).
+- Not a **database** — no queries/transactions, higher latency (tens of ms), fetch/put whole
+  objects by key.
+
+So: **for large, whole-object blobs read/written by key** — files, media, logs, backups,
+archives, data-lake data.
+
+**Why it's the default:**
+
+| Property | Value |
+|---|---|
+| Durability | 99.999999999% (11 nines) — replicated across AZs |
+| Availability | ~99.99% (Standard) |
+| Scale | virtually unlimited; auto-scales; object up to 5 TB |
+| Cost | ~$23/TB/mo (Standard) down to ~$1/TB/mo (Glacier Deep Archive) |
+| Consistency | **strong read-after-write** (since Dec 2020; older "eventually consistent" is outdated) |
+
+**Patterns worth naming:**
+- **Store the blob in S3, the pointer (key/URL) in the DB.** Keeps the DB small and fast —
+  the canonical move. Don't put a 5 MB image in Postgres.
+- **Presigned URLs** — clients upload/download *directly* to/from S3, bypassing your servers
+  (offloads bandwidth).
+- **S3 + CDN (CloudFront)** — cache objects at the edge for fast global reads and to cut
+  egress cost.
+- **Multipart upload** — large files uploaded in parallel, resumable parts.
+- **Storage classes + lifecycle policies** — auto-transition objects to colder tiers
+  (Standard → Standard-IA → Glacier) or delete after N days. This *is* the hot/warm/cold
+  tiering + retention above, implemented in S3.
+
+**Bad at:** low-latency / high-frequency small reads & writes, transactional/relational data,
+in-place edits → use a DB or cache for those.
+
+**Cost gotcha:** you pay for storage + requests + **egress** (data transfer OUT to the
+internet, ~$0.09/GB; transfer IN is free). A CDN in front cuts egress.
+
+**In this project:** the natural next step for the ~100 GB/day storage growth — keep recent
+(hot) logs searchable in **OpenSearch**, and **archive older logs to S3/Glacier** via
+lifecycle policies instead of keeping everything hot. You can also land the raw stream in S3
+as a durable data lake (Kafka Connect S3 sink) and query history with Athena, while
+OpenSearch serves fast search.
+
+**One-liner:** durable (11 nines), effectively unlimited, cheap object storage; store the
+object in S3 and the pointer in the DB, use presigned URLs + a CDN, tier with lifecycle
+policies, and watch egress. Not a filesystem or database.
+
 ## 4. Scale tiers — where the design changes
 
 | Throughput | What it takes | Design change |
