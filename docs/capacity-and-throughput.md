@@ -64,6 +64,46 @@ Example: 10M users × 10 actions = 100M/day → drop 5 zeros → 1,000/sec → �
 | Storage/day | requests/day × size per request |
 | **Key threshold** | **~10K writes/sec → "need distributed / sharding / a queue"** |
 
+### Storage estimation (the easy way)
+
+**Three throughput dimensions** exist — prioritize: **(1) request rate (RPS)** always;
+**(2) storage growth** often; **(3) bandwidth (MB/s)** only for media-heavy systems
+(= rate × payload size).
+
+**Unit ladder** (×1000 = one unit up = 3 zeros):
+
+| Unit | Bytes | Zeros |
+|---|---|---|
+| KB | 1,000 | 3 |
+| MB | 1,000,000 | 6 |
+| GB | 1,000,000,000 | 9 |
+| TB | 10¹² | 12 |
+| PB | 10¹⁵ | 15 |
+
+Bytes → a unit = **drop that many zeros** (GB = drop 9, TB = drop 12).
+
+**Default item sizes:** log / tweet / JSON / DB row = **1 KB** · photo = **1 MB** ·
+1 min video ≈ **30 MB** · movie ≈ **1 GB**.
+
+**Recipe** (stay in the unit — don't touch bytes):
+```
+1. writes/sec
+2. × 100,000            → writes/day (add 5 zeros)
+3. × size per item      → in that unit
+4. walk ÷1000 per step  → GB/day (or TB)
+   shortcut @1KB/item:  GB/day = writes/day with 6 zeros dropped
+   then ×365 for /year, ×replication factor
+```
+Example: 5,000 logs/s → 500,000,000 logs/day × 1 KB → drop 6 zeros → **500 GB/day** ≈ 180 TB/yr.
+
+**Storage tiers:**
+
+| Storage growth | What you do |
+|---|---|
+| GB/day (< ~1 TB total) | single disk / DB fine |
+| TB/day | distributed storage, **retention**, **tiering** (hot/warm/cold), compression, object storage (S3) |
+| PB total | big-data infra (data lakes, columnar) |
+
 ## 4. Scale tiers — where the design changes
 
 | Throughput | What it takes | Design change |

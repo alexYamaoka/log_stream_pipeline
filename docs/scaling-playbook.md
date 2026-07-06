@@ -57,6 +57,38 @@ Rough single-node ceilings (order of magnitude, fuzzy — depends on hardware):
 > batching can sometimes hit ~10–20K simple writes/sec. It's ~**100K+** where you *clearly*
 > must go distributed.
 
+### Scaling tiers at a glance
+
+**Reads** (easy — cache + replicas):
+
+| Reads/sec | Method |
+|---|---|
+| < ~1K | single DB, no cache |
+| ~1K–10K | + cache (Redis), maybe a read replica |
+| ~10K–100K | cache cluster + replicas + CDN |
+| > ~100K | heavy caching, many replicas, CDN, geo |
+
+**Writes** (hard — shard):
+
+| Writes/sec | Method |
+|---|---|
+| < ~1K | single DB |
+| ~1K–10K | one strong primary; queue if bursty; batch |
+| ~10K–50K | shard (distributed SQL / NoSQL) + queue |
+| > ~50K | many write nodes (NoSQL / heavily-sharded SQL) |
+
+**Storage growth:**
+
+| Growth | Method |
+|---|---|
+| GB/day | single disk / DB |
+| TB/day | distributed storage, retention, tiering, S3 |
+| PB total | big-data infra |
+
+**Anchor:** **~10K writes/sec = the edge of a single primary** → the "now it's distributed"
+line. (Reads hit "add a cache" around a few K/sec, but that's cheap; the *write* number forces
+architectural change.)
+
 ## 2. Scaling reads — the easy playbook (in order)
 
 1. **Cache** (Redis / Memcached) in front of the DB — serve hot reads from memory. Biggest,
@@ -92,6 +124,19 @@ A queue absorbs **bursts** and lets a slow sink **drain steadily** — but it do
 the sink's sustained ceiling.** If the *sustained* write rate exceeds sink capacity, the
 backlog grows forever. The queue buys **time and smoothing, not capacity**; a true sustained
 shortfall still forces sharding / adding nodes. True for any sink (Postgres or Cassandra).
+
+### Two tiers to scale: processing vs. storage
+In a queue-based pipeline (like this project) there are **two separate** things to scale, with
+**two separate bottlenecks**:
+- **Processing tier** (the consumers) — how fast you pull from the queue and *attempt* writes.
+  Scale with **more partitions + more consumers**. Stateless → easy.
+- **Storage tier** (the sink DB) — how fast the datastore *accepts* writes. Scale by
+  **sharding / adding nodes**. Stateful → the ultimate write ceiling.
+
+Adding consumers when the **DB** is the bottleneck does nothing (they just stall on the DB);
+adding DB nodes when the **consumers** are the bottleneck does nothing (the DB sits idle).
+**Scale the saturated tier, and keep them balanced.** Diagnose with **consumer lag** (consumers
+behind) vs. **DB write latency / utilization** (DB behind).
 
 ## 4. The "two kinds of cluster" trap (important!)
 
@@ -172,6 +217,22 @@ DynamoDB's partition key — always "which key decides which node holds this dat
 well (even distribution, present in your access patterns, hard to change later) is the core
 distributed-systems skill, and the "re-sharding is painful" pain mirrors Kafka's one-way
 partition-count decision.
+
+### Scaling a NoSQL sink: adding nodes ≠ a migration
+NoSQL stores (DynamoDB, Cassandra) are **pre-sharded**, so scaling writes = **add nodes**, not a
+migration. **Consistent hashing** is why it's cheap: adding a node moves only ~**1/N** of the
+data, not everything (unlike naive `hash % N`, which remaps almost every key).
+
+| Sink | Scale writes = | How heavy |
+|---|---|---|
+| Postgres (retrofit sharding) | dual-write + backfill + cutover **migration** | 😣 heavy (multi-week) |
+| Cassandra (self-managed) | add node → auto-joins ring, streams ~1/N of data, online | 🙂 routine ops |
+| DynamoDB (managed) | change capacity / on-demand — AWS auto-splits partitions | 😎 trivial, invisible |
+
+**Node vs. shard:** a *node* is a machine; a *shard/partition* is a data slice. Adding a node
+redistributes existing shards onto more machines; managed systems also split shards
+automatically. Our OpenSearch sink is Cassandra-like — adding a node triggers automatic shard
+reallocation.
 
 ## 6. Choosing a database — the decision framework
 
