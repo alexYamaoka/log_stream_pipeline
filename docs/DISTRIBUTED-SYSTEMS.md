@@ -3,7 +3,7 @@
 Consolidated deep-dive learnings from building this project: Kafka, OpenSearch,
 reliability, and scaling — from first principles, tied to the actual code.
 
-**Companion docs:** `PROJECT.md` (the project) · `SYSTEM-DESIGN-NOTES.md` (interview prep).
+**Companion docs:** `PROJECT.md` (the project) · `SYSTEM-DESIGN-NOTES.md` (system-design notes).
 
 ## Contents
 1. **Kafka, Explained From Zero** — conveyor-belt model, KafkaTemplate, our setup
@@ -423,7 +423,7 @@ dlq.send("logs-dlq", '{"error": "...", "raw": "..."}')
 dlq.flush()
 ```
 
-## 7. Delivery semantics (important interview topic)
+## 7. Delivery semantics (a key concept)
 
 | Semantic | How you get it | Our pipeline |
 |---|---|---|
@@ -865,7 +865,7 @@ aggregations from §6 as charts. See the README for click-by-click steps.
 This is one of the most important system-design topics in the project. It answers:
 *when things fail and work gets retried, how do we avoid corrupting the data?* The
 answer is **idempotency**, and understanding where it lives (and where Kafka does vs.
-doesn't help) is exactly the kind of thing a system-design interview probes.
+doesn't help) is a common source of confusion worth getting right.
 
 ---
 
@@ -963,7 +963,7 @@ rebalance dupes at once.**
 This is the **"idempotent receiver"** / **"upsert by natural key"** pattern. We pushed
 idempotency to the **sink** rather than trying to prevent duplicates everywhere upstream.
 
-### Why the details matter (subtle but interview-critical)
+### Why the details matter (subtle but important)
 - The key must be generated **at the source and carried through** — *not* regenerated in
   the consumer. If the consumer made a new id per processing attempt, retries would get
   *different* ids and duplicate. (This is also why a random UUID per `generateLog()` call
@@ -1012,7 +1012,7 @@ Tracked in open-questions.md.
 | Redelivery / rebalance dupes | **You** | Idempotent processing | ✅ deterministic `_id` |
 | Sink write dupes | **You** | Upsert by natural key | ✅ deterministic `_id` |
 
-**How to say it in an interview:**
+**In short:**
 > "We use **at-least-once delivery** — commit offsets only after the batch is indexed —
 > and make processing **idempotent** by using each log's source-generated id as the
 > OpenSearch document id. That gives us **effectively-once** semantics without the cost

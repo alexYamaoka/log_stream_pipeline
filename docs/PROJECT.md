@@ -3,7 +3,7 @@
 Consolidated project documentation: what we built, why, and what's next.
 
 **Companion docs:** `DISTRIBUTED-SYSTEMS.md` (how the tech works, deep dives) ·
-`SYSTEM-DESIGN-NOTES.md` (interview prep). Cross-references to other doc names now
+`SYSTEM-DESIGN-NOTES.md` (system-design notes). Cross-references to other doc names now
 refer to sections within these three files.
 
 ## Contents
@@ -77,8 +77,7 @@ performance profiles, so they can be scaled independently.
 # Design Decisions & Rationale
 
 This is the heart of the docs: every meaningful decision, *why* we made it, what
-makes it **more robust**, and the **trade-offs**. Each entry is written so you can
-defend the choice in an interview.
+makes it **more robust**, and the **trade-offs**.
 
 ---
 

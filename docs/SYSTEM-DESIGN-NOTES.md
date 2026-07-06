@@ -1,6 +1,6 @@
 # System Design Notes
 
-Consolidated interview-prep learnings: estimating load, and scaling reads/writes/storage.
+Notes on estimating load and scaling reads/writes/storage.
 General knowledge (not project-specific), with this project as a running example.
 
 **Companion docs:** `PROJECT.md` (the project) · `DISTRIBUTED-SYSTEMS.md` (how the tech works).
@@ -13,8 +13,8 @@ General knowledge (not project-specific), with this project as a running example
 
 # Capacity & Throughput Estimation
 
-System-design interview prep: how to estimate load (requests/sec), why it drives the whole
-design, and where the design fundamentally changes. Pairs with
+How to estimate load (requests/sec), why it drives the whole design, and where the design
+fundamentally changes. Pairs with
 scaling-playbook.md (what to *do* with the number).
 
 ---
@@ -36,8 +36,7 @@ The RPS number decides:
   SQL DB). The number tells you which one breaks first.
 - **Cost.** 1M RPS might mean hundreds of servers.
 
-Interviewers grade whether you **justify design with math**, not whether you memorized
-numbers.
+What matters is **justifying design with math**, not memorizing exact numbers.
 
 ## 3. Back-of-envelope: the "drop 5 zeros" trick
 
@@ -227,7 +226,7 @@ faster and Kafka absorbs the difference — which is the whole point of the deco
 - **More infra:** more Kafka partitions/brokers (ingest headroom); more OpenSearch nodes
   (indexing ceiling).
 
-## 10. Interview mindset
+## 10. Estimation mindset
 
 - You need **order-of-magnitude estimates + the method**, not exact numbers.
 - **State assumptions** (DAU, actions/user, peak ×) out loud.
@@ -239,8 +238,8 @@ faster and Kafka absorbs the difference — which is the whole point of the deco
 
 # Scaling Playbook — Reads, Writes & Choosing a Database
 
-General system-design interview prep (not specific to this project, but the project is a
-working example — see the end). Covers how to scale reads vs. writes, the database-choice
+General system-design notes (not specific to this project, but the project is a working
+example — see the end). Covers how to scale reads vs. writes, the database-choice
 decision framework, and the trade-offs.
 
 Pairs with capacity-and-throughput.md (how to *estimate* the
@@ -523,7 +522,7 @@ write-heavy data to a sharded/NoSQL store only when volume forces you.
 | Keyspaces (Cassandra) | Managed wide-column | reads **+ writes** | write-heavy, time-series/logs |
 | ElastiCache (Redis) | In-memory cache | reads | hot-read caching |
 
-## 9. The interview script
+## 9. A structured way to decide
 
 ```
 1. Clarify: scale (sustained vs peak), access pattern, consistency needs.
@@ -534,8 +533,8 @@ write-heavy data to a sharded/NoSQL store only when volume forces you.
      bursty                              → queue in front, single/replicated Postgres
 4. Name the trade-off you're accepting (joins/consistency vs write-scale).
 ```
-Interviewers reward **"it depends, here's my decision tree"** over dogmatic "always Postgres"
-or "always Dynamo at 10K."
+**"It depends, here's the decision tree"** is stronger than dogmatic "always Postgres" or
+"always Dynamo at 10K."
 
 ## 10. This project is a live example
 
