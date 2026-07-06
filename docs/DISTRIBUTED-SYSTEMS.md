@@ -9,7 +9,7 @@ reliability, and scaling — from first principles, tied to the actual code.
 1. **Kafka, Explained From Zero** — conveyor-belt model, KafkaTemplate, our setup
 2. **Kafka — Reference & How-To** — data model, CLI/config syntax, acks, replication, delivery semantics
 3. **The Python Consumer & OpenSearch, Explained From Zero** — consumer groups, offsets, DLQ
-4. **OpenSearch — Reference & How-To** — data model, Query DSL, aggregations, kNN
+4. **OpenSearch — Reference & How-To** — data model, Query DSL, aggregations
 5. **Idempotency & Reliability** — delivery guarantees, effectively-once
 6. **Scaling & Backpressure** — backpressure, rebalancing, safe restarts
 7. **Multi-Broker Kafka** — local 3-broker sim + production scaling
@@ -597,14 +597,13 @@ nothing crashes — standard production hygiene.
 "message": {"type": "text"},      # full-text: search FOR words inside it
 ```
 
-The `keyword` vs `text` distinction is the core Path-A insight:
+The `keyword` vs `text` distinction is the core insight:
 - **`keyword`** = one exact value. For **filters/aggregations**: "all logs where
   `service = payment-api` AND `level = ERROR`."
 - **`text`** = broken into words and indexed for **search**: "messages containing
   `timeout`."
 
-That combination — exact filters + full-text — is why OpenSearch fits logs better
-than a pure vector DB. Embeddings are the optional `USE_EMBEDDINGS` phase-2 layer.
+That combination — exact filters + full-text — is why OpenSearch fits logs well.
 
 `to_action` packages each log for `helpers.bulk`:
 ```python
@@ -677,7 +676,6 @@ OpenSearch node
 | `keyword` | one exact, un-analyzed value | filters, aggregations, sorting | `level = "ERROR"` |
 | `text` | analyzed into tokens | full-text search | message *contains* "timeout" |
 | `date` | timestamp | ranges, time filters, histograms | last 15 min |
-| `knn_vector` | float vector | semantic / similarity search | nearest neighbors |
 
 > **`keyword` vs `text` is the single most important distinction.** `keyword` = exact
 > match (good for `service`, `level`). `text` = word search (good for `message`). Many
@@ -689,8 +687,6 @@ OpenSearch node
 - **Full-text search** — relevance-ranked word search (BM25).
 - **Structured filtering** — exact term, ranges, booleans (yes/no, not scored).
 - **Aggregations** — group-by / analytics (count errors per service, logs over time).
-- **kNN / vector search** — semantic similarity (our optional phase 2).
-- **Hybrid search** — combine full-text + vector in one query.
 - **Dashboards** — visualize via OpenSearch Dashboards (the UI at :5601).
 
 ## 4. Operating OpenSearch — REST syntax (curl)
@@ -856,22 +852,7 @@ resp = client.search(index="logs", body={
 hits = resp["hits"]["hits"]            # list of matching documents
 ```
 
-## 8. Phase 2: vectors / kNN (optional)
-
-With `USE_EMBEDDINGS=true`, `ensure_index` adds a vector field and enables kNN:
-```python
-"message_vector": {"type": "knn_vector", "dimension": 384}   # + settings: {"index": {"knn": true}}
-```
-Then a similarity search finds the nearest log vectors:
-```bash
-curl "localhost:9200/logs/_search" -H 'Content-Type: application/json' -d '{
-  "size": 5,
-  "query": { "knn": { "message_vector": { "vector": [/* 384 floats */], "k": 5 } } }
-}'
-```
-Combining this with a `match`/`filter` clause gives **hybrid search**.
-
-## 9. Where to see it visually
+## 8. Where to see it visually
 OpenSearch Dashboards at **http://localhost:5601** → create a data view on the `logs`
 index (time field `timestamp`) → **Discover** to search, or **Visualize** to build the
 aggregations from §6 as charts. See the README for click-by-click steps.
@@ -1669,20 +1650,11 @@ kafka-explained.md and consumer-explained.md.
 - **`keyword` field** — stored as one exact value; used for filters and aggregations
   (exact match).
 - **`text` field** — analyzed into words and indexed for full-text search.
-- **knn_vector** — a field type holding an embedding vector for semantic/kNN search
-  (our optional phase-2 feature).
 - **Bulk request** — indexing many documents in one network call (`helpers.bulk`).
 
-## AI / search concepts
+## Search concepts
 
-- **Vector embedding** — a numeric vector representing the *meaning* of text; lets you
-  find semantically similar items. Optional here (phase 2).
-- **Full-text search** — keyword/word-based search (BM25). Our backbone for logs.
-- **Hybrid search** — combining full-text + vector search; the best-of-both approach.
-- **RAG (Retrieval-Augmented Generation)** — retrieve relevant docs, feed them to an
-  LLM to answer questions. The "Path B" use case we did *not* center on.
-- **Ollama** — runs small models locally; we'd use it for embeddings in phase 2
-  (e.g., `all-minilm`, 384-dim).
+- **Full-text search** — keyword/word-based search (BM25); the backbone for logs.
 
 ## System design / scaling
 

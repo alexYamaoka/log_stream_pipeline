@@ -21,8 +21,7 @@ A **real-time distributed data pipeline** that ingests a high-throughput stream 
 application logs, buffers them safely, processes them, and stores them in a way
 that's searchable — all running locally on a single laptop via Docker.
 
-The folder is named `log_streams` because we chose the **system-logs / infrastructure**
-flavor of the project (see design-decisions.md, "Path A vs Path B").
+The folder is named `log_streams`. The data is simulated application logs.
 
 ## The data flow
 
@@ -36,13 +35,13 @@ flavor of the project (see design-decisions.md, "Path A vs Path B").
 |-------|------|-----|
 | **Ingestor** | Java / Spring Boot | Generate realistic fake logs and push them into Kafka fast |
 | **Broker** | Apache Kafka | Hold the stream safely so nothing drops if the worker is slow |
-| **Processor** | Python | Pull text, batch it, index it (optionally embed it) |
+| **Processor** | Python | Pull logs, batch them, index them |
 | **Storage** | OpenSearch | Store logs so you can full-text + filter search them |
 
 ## What this project is really about
 
-The headline isn't "AI." It's **distributed systems**. The pipeline is designed to
-*demonstrate* these production concepts on a laptop:
+The point is **distributed systems**. The pipeline demonstrates these production
+concepts on a laptop:
 
 - **Decoupling** — each component is its own process/container, talking only over the
   network. Any one can crash without taking the others down.
@@ -54,20 +53,11 @@ The headline isn't "AI." It's **distributed systems**. The pipeline is designed 
 
 ## Why two languages?
 
-It mirrors how real companies actually build these systems:
 - **Java** for high-throughput, low-latency ingestion.
-- **Python** for the data/ML processing.
+- **Python** for the consuming and indexing side.
 
-This polyglot split is itself a portfolio talking point, and it sets up the
-"asymmetric scaling" story — ingestion and processing have very different
-performance profiles, so being able to scale them independently is the point.
-
-## Who it's for (the resume angle)
-
-- **Infra / Platform engineering teams** ← this project, as built (Path A).
-  Emphasizes high-throughput streaming, fault tolerance, and scaling.
-- An alternate "Path B" (wiki documents + vector DB) would target **AI Application**
-  teams instead. We chose Path A; see design-decisions.md.
+The split also enables asymmetric scaling — ingestion and processing have different
+performance profiles, so they can be scaled independently.
 
 ## Important honest caveats
 
@@ -150,89 +140,23 @@ systems, it's the centerpiece.
 
 ---
 
-## 4. Path A (system logs) over Path B (wiki documents)
+## 4. OpenSearch as the store
 
-**Decision:** Build the **system-error-logs / infrastructure** pipeline, not the
-enterprise-wiki / RAG pipeline.
+**Decision:** Use **OpenSearch** (a full-text + structured search engine) as the store.
 
-**Why:** Targets infra/platform roles and plays to the distributed-systems story
-(high throughput, streaming, scaling). The folder name `log_streams` reflects this.
-
-**The two paths compared:**
-
-| Dimension | Path A: System Logs | Path B: Wiki Documents |
-|---|---|---|
-| Throughput | High-velocity streaming (thousands/sec) | Low-frequency batches |
-| Document size | Short, structured (one JSON line) | Long, unstructured (needs chunking) |
-| Kafka strategy | Aggressive batching/compression for tiny msgs | Larger payloads, watch the 1MB limit |
-| Search need | Keyword + filters + (optional) semantic | Semantic / natural-language |
-| Best storage | OpenSearch (full-text + filters) | Vector DB (Qdrant/Chroma) |
-| Use case | Root-cause analysis / log search | Internal Q&A RAG bot |
-| Targets | **Infra / Platform teams** | AI Application teams |
-
-**Trade-off:** Path A showcases less "AI logic" (chunking, RAG accuracy). We
-mitigate that by keeping vector embeddings as an *optional phase 2* (decision #6).
-
----
-
-## 5. OpenSearch as storage — NOT a pure vector database
-
-**Decision:** Use **OpenSearch** (full-text + structured search engine) as the
-primary store, instead of Qdrant or Chroma.
-
-**Why:** Logs are **structured and keyword/code-heavy**. The questions you ask logs
-are mostly:
+**Why:** Logs are **structured and keyword-heavy**. The questions you ask logs are mostly:
 - "All `ERROR` logs from `payment-api` in the last hour" → **structured filter**
 - "Logs containing `NullPointerException`" → **keyword / full-text**
-- "Errors *similar* to this one" → semantic (the minority case)
 
-Full-text + filtering handles ~80% of real log queries. OpenSearch is literally the
+Full-text + filtering handles the large majority of real log queries. OpenSearch is the
 industry standard for log pipelines (the "ELK / observability stack").
 
-**What makes it robust / a smarter choice:**
-- It's self-contained storage (Lucene-backed) — no separate DB needed.
-- It *also* supports vector/kNN search, so you can add embeddings later as a
-  **hybrid** layer — best of both worlds, no migration.
-- Choosing *not* to vectorize everything demonstrates engineering judgment — itself
-  a resume highlight.
+**What makes it robust:**
+- Self-contained storage (Lucene-backed) — no separate database needed.
+- It's the search engine *and* the datastore in one.
 
-**Trade-off:** OpenSearch is JVM-based and heavier (~1–1.5 GB heap) than Qdrant/Chroma
-(<500 MB). Fine on a 16 GB machine; something to tune on 8 GB.
-
----
-
-## 6. Vector embeddings are OPTIONAL (phase 2), not the backbone
-
-**Decision:** Full-text search is the backbone. Embeddings are gated behind a
-`USE_EMBEDDINGS=true` toggle in the Python worker.
-
-**Why:** Embeddings shine for *natural-language, fuzzy* queries ("what is our
-parental leave policy?"). Logs are the opposite — structured, keyword/code-heavy.
-For logs, embeddings add value only for the *minority* case (semantic anomaly
-clustering, "find similar incidents"), so they shouldn't be the foundation.
-
-**What makes it robust:** You get a working, fast, defensible system from day one
-*without* embeddings. You layer in semantic search only where it actually helps,
-producing **hybrid search** (keyword + vector) — which is how mature systems do it.
-
-**Trade-off:** Less "look, AI!" flash up front. But it's the technically honest
-choice, and hybrid search is more impressive than naive "embed everything."
-
----
-
-## 7. Chroma vs Qdrant (reference — for if we ever go vector-first)
-
-We are *not* using either as the backbone, but we compared them:
-
-| | Chroma | Qdrant |
-|---|---|---|
-| Vibe | Easiest DX, Python-native | Production-grade, Rust |
-| Best for | Prototyping, notebooks, RAG demos | Real deployments, scale, filtering |
-| Setup | Can run in-process | Runs as a server/container |
-| Story it tells | "I built a RAG prototype" | "I built infra you'd ship" |
-
-**Takeaway:** For an *infra* portfolio piece, Qdrant tells the better story than
-Chroma. But for *logs*, OpenSearch beats both (decision #5).
+**Trade-off:** OpenSearch is JVM-based and relatively heavy (~1–1.5 GB heap). Fine on a
+16 GB machine; something to tune on 8 GB.
 
 ---
 
@@ -451,13 +375,10 @@ Update this as we go.
       for a laptop simulation — just be precise that it's a simulation, not a real
       distributed cluster.
 
-## Enhancement ideas (portfolio level-ups)
+## Enhancement ideas
 
-- [ ] **Phase 2: semantic search.** Turn on `USE_EMBEDDINGS=true`, pull `all-minilm`
-      via Ollama, and demonstrate **hybrid search** (full-text + kNN) — "find logs
-      similar to this incident."
 - [ ] **Dashboards visualizations.** Build a few OpenSearch Dashboards panels (errors
-      over time, errors by service) for portfolio screenshots.
+      over time, errors by service).
 - [ ] **Metrics/observability.** Expose consumer lag or throughput numbers to make the
       backpressure story visible.
 - [ ] **Replay tooling for the DLQ.** A small script to inspect and re-submit
@@ -477,8 +398,6 @@ Update this as we go.
 
 ## Decisions still open
 
-- [ ] Whether to ever add Path B (wiki/RAG) as a second showcase, or keep this focused
-      on the infra story.
 - [ ] Final partition count and whether to demonstrate a multi-broker Kafka cluster.
       Walkthrough + production context in
       multi-broker-setup.md.

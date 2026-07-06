@@ -1,6 +1,5 @@
 # Maintained fork of kafka-python; works on Python 3.12+ (drop-in, same `kafka` import).
 kafka-python-ng==2.2.3
 opensearch-py==2.7.1
-requests==2.32.3
 # Decoder for the producer's snappy-compressed messages (compression.type=snappy).
 python-snappy==0.7.3

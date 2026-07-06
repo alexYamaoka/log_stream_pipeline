@@ -1,18 +1,15 @@
 """
-Kafka -> OpenSearch worker (Path A: full-text first).
+Kafka -> OpenSearch worker.
 
-Pulls log events from the "raw-logs" topic, batches them, and bulk-indexes
-them into OpenSearch for full-text + structured search. Bad messages get
-routed to a dead-letter topic instead of crashing the worker.
+Pulls log events from the "raw-logs" topic, batches them, and bulk-indexes them into
+OpenSearch for full-text + structured search. Bad messages are routed to a dead-letter
+topic instead of crashing the worker.
 
 Distributed-systems features on display:
   * Consumer group       -> run multiple copies, Kafka load-balances partitions
   * Manual offset commit -> only commit AFTER a batch is safely indexed
   * Dead-letter queue    -> corrupt messages go to "logs-dlq", never lost
   * Backpressure         -> if OpenSearch is slow, we simply consume slower
-
-Optional Phase 2: set USE_EMBEDDINGS=true to also attach a vector embedding
-(via Ollama) to each log for semantic "find similar incidents" search.
 """
 
 import json
@@ -20,7 +17,6 @@ import os
 import signal
 import sys
 
-import requests
 from kafka import KafkaConsumer, KafkaProducer
 from opensearchpy import OpenSearch, helpers
 
@@ -33,51 +29,33 @@ INDEX = os.getenv("INDEX", "logs")
 BATCH_SIZE = int(os.getenv("BATCH_SIZE", "200"))
 OPENSEARCH_URL = os.getenv("OPENSEARCH_URL", "http://localhost:9200")
 
-USE_EMBEDDINGS = os.getenv("USE_EMBEDDINGS", "false").lower() == "true"
-OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434/api/embeddings")
-EMBED_MODEL = os.getenv("EMBED_MODEL", "all-minilm")
-EMBED_DIM = int(os.getenv("EMBED_DIM", "384"))  # all-minilm = 384 dims
 
 # --- OpenSearch index mapping ------------------------------------------------
-# Explicit mapping = the "schema". keyword fields are for exact filters/aggs,
+# Explicit mapping = the "schema". keyword fields are for exact filters/aggregations,
 # text fields are analyzed for full-text search.
 def index_mapping():
-    props = {
-        "id": {"type": "keyword"},
-        "timestamp": {"type": "date", "format": "epoch_millis"},
-        "service": {"type": "keyword"},
-        "host": {"type": "keyword"},
-        "level": {"type": "keyword"},
-        "message": {"type": "text"},
-    }
-    if USE_EMBEDDINGS:
-        props["message_vector"] = {
-            "type": "knn_vector",
-            "dimension": EMBED_DIM,
+    return {
+        "mappings": {
+            "properties": {
+                "id": {"type": "keyword"},
+                "timestamp": {"type": "date", "format": "epoch_millis"},
+                "service": {"type": "keyword"},
+                "host": {"type": "keyword"},
+                "level": {"type": "keyword"},
+                "message": {"type": "text"},
+            }
         }
-    body = {"mappings": {"properties": props}}
-    if USE_EMBEDDINGS:
-        body["settings"] = {"index": {"knn": True}}
-    return body
+    }
 
 
 def ensure_index(client):
     if not client.indices.exists(INDEX):
         client.indices.create(INDEX, body=index_mapping())
-        print(f"created index '{INDEX}' (embeddings={'on' if USE_EMBEDDINGS else 'off'})")
-
-
-def embed(text):
-    """Phase 2: get a vector for one log message from Ollama."""
-    resp = requests.post(OLLAMA_URL, json={"model": EMBED_MODEL, "prompt": text}, timeout=30)
-    resp.raise_for_status()
-    return resp.json()["embedding"]
+        print(f"created index '{INDEX}'")
 
 
 def to_action(doc):
     """Turn a parsed log dict into an OpenSearch bulk-index action."""
-    if USE_EMBEDDINGS:
-        doc["message_vector"] = embed(doc["message"])
     return {"_index": INDEX, "_id": doc["id"], "_source": doc}
 
 

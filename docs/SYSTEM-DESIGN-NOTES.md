@@ -214,12 +214,9 @@ Java producer → Kafka → Python consumer → OpenSearch
 - **Kafka:** not the bottleneck — hundreds of thousands/s on one broker.
 - **Consumer → OpenSearch:** the ceiling — single-threaded Python, pure-Python Kafka client,
   synchronous bulk of 200 → realistically **~2K–10K logs/sec** on a laptop.
-- **With `USE_EMBEDDINGS=true`:** collapses to **~hundreds/sec** (Ollama CPU embeddings). But
-  embeddings are OFF by default, so this doesn't apply to the current setup.
 
-**Honest estimate:** end-to-end sustains **~a few thousand logs/sec** (embeddings off); the
-producer can burst faster and Kafka absorbs the difference — which is the whole point of the
-decoupling.
+**Honest estimate:** end-to-end sustains **~a few thousand logs/sec**; the producer can burst
+faster and Kafka absorbs the difference — which is the whole point of the decoupling.
 
 ## 9. Scaling this project further (walk the bottleneck = consumer→OpenSearch)
 
@@ -229,7 +226,6 @@ decoupling.
   disable replicas during bulk loads; more shards / nodes.
 - **More infra:** more Kafka partitions/brokers (ingest headroom); more OpenSearch nodes
   (indexing ceiling).
-- **If embeddings are on:** batch them, use a GPU, or a dedicated embedding service.
 
 ## 10. Interview mindset
 
