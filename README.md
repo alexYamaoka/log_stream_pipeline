@@ -12,6 +12,8 @@ concepts it demonstrates — the data is simulated.
 
 ## Architecture
 
+![LogStream Pipeline — Java producer to Kafka to Python consumer to OpenSearch](docs/architecture.svg)
+
 ```
 [Java producer] --> [ Kafka ] --> [ Python worker ] --> [ OpenSearch ]
  generates logs     message queue   consume + index      search + storage

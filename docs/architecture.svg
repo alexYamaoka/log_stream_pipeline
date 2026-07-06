@@ -1,0 +1,93 @@
+<svg viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img" font-family="'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
+  <title>LogStream Pipeline architecture</title>
+  <desc>Java producer publishes to Apache Kafka; a Python consumer batches and bulk-indexes into OpenSearch; malformed messages go to a dead-letter queue.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="9" markerHeight="9" refX="6.5" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#334155"/>
+    </marker>
+    <marker id="arrowRed" markerWidth="9" markerHeight="9" refX="6.5" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#C0392B"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="630" fill="#FFFFFF"/>
+  <rect x="1" y="1" width="1198" height="628" fill="none" stroke="#E2E8F0" stroke-width="2"/>
+
+  <!-- Header -->
+  <text x="60" y="66" font-size="40" font-weight="700" fill="#0F172A">LogStream Pipeline</text>
+  <text x="62" y="98" font-size="18" fill="#475569">A distributed log-processing pipeline — Java → Kafka → Python → OpenSearch</text>
+  <rect x="1006" y="42" width="134" height="34" rx="17" fill="#F1F5F9" stroke="#CBD5E1"/>
+  <text x="1073" y="64" font-size="14" fill="#334155" text-anchor="middle">Runs in Docker</text>
+  <line x1="60" y1="120" x2="1140" y2="120" stroke="#E2E8F0" stroke-width="2"/>
+
+  <!-- flow arrows + labels -->
+  <g stroke="#334155" stroke-width="2.5" fill="none">
+    <line x1="266" y1="285" x2="344" y2="285" marker-end="url(#arrow)"/>
+    <line x1="566" y1="285" x2="644" y2="285" marker-end="url(#arrow)"/>
+    <line x1="866" y1="285" x2="944" y2="285" marker-end="url(#arrow)"/>
+  </g>
+  <g font-size="12.5" fill="#475569" text-anchor="middle" font-style="italic">
+    <text x="305" y="276">publish</text>
+    <text x="605" y="276">consume</text>
+    <text x="905" y="276">bulk index</text>
+  </g>
+
+  <!-- Node 1: Java Producer -->
+  <rect x="50" y="210" width="210" height="150" rx="16" fill="#FDF0E6" stroke="#E8843C" stroke-width="2"/>
+  <circle cx="155" cy="250" r="26" fill="#E8843C"/>
+  <g fill="#FFFFFF">
+    <rect x="143" y="242" width="24" height="3.6" rx="1.8"/>
+    <rect x="143" y="249" width="24" height="3.6" rx="1.8"/>
+    <rect x="143" y="256" width="15" height="3.6" rx="1.8"/>
+  </g>
+  <text x="155" y="303" font-size="20" font-weight="700" fill="#0F172A" text-anchor="middle">Java Producer</text>
+  <text x="155" y="326" font-size="13" fill="#64748B" text-anchor="middle">Spring Boot</text>
+  <text x="155" y="344" font-size="13" fill="#64748B" text-anchor="middle">generates log events</text>
+
+  <!-- Node 2: Kafka -->
+  <rect x="350" y="210" width="210" height="150" rx="16" fill="#EFEDFB" stroke="#6C5CE7" stroke-width="2"/>
+  <circle cx="455" cy="250" r="26" fill="#6C5CE7"/>
+  <g fill="#FFFFFF">
+    <rect x="437" y="246" width="9" height="9" rx="1.6"/>
+    <rect x="450" y="246" width="9" height="9" rx="1.6"/>
+    <rect x="463" y="246" width="9" height="9" rx="1.6"/>
+  </g>
+  <text x="455" y="303" font-size="20" font-weight="700" fill="#0F172A" text-anchor="middle">Apache Kafka</text>
+  <text x="455" y="326" font-size="13" fill="#64748B" text-anchor="middle">message queue</text>
+  <text x="455" y="344" font-size="13" fill="#64748B" text-anchor="middle">topic: raw-logs</text>
+
+  <!-- Node 3: Python Consumer -->
+  <rect x="650" y="210" width="210" height="150" rx="16" fill="#E8F1FA" stroke="#2E86C1" stroke-width="2"/>
+  <circle cx="755" cy="250" r="26" fill="#2E86C1"/>
+  <g fill="#FFFFFF">
+    <rect x="743" y="238" width="10" height="10" rx="2"/>
+    <rect x="757" y="238" width="10" height="10" rx="2"/>
+    <rect x="743" y="252" width="10" height="10" rx="2"/>
+    <rect x="757" y="252" width="10" height="10" rx="2"/>
+  </g>
+  <text x="755" y="303" font-size="20" font-weight="700" fill="#0F172A" text-anchor="middle">Python Consumer</text>
+  <text x="755" y="326" font-size="13" fill="#64748B" text-anchor="middle">batches + indexes</text>
+  <text x="755" y="344" font-size="13" fill="#64748B" text-anchor="middle">consumer group</text>
+
+  <!-- Node 4: OpenSearch -->
+  <rect x="950" y="210" width="210" height="150" rx="16" fill="#E4F4F5" stroke="#14919B" stroke-width="2"/>
+  <circle cx="1055" cy="250" r="26" fill="#14919B"/>
+  <g fill="none" stroke="#FFFFFF" stroke-width="3.4" stroke-linecap="round">
+    <circle cx="1051" cy="246" r="8.5"/>
+    <line x1="1057" y1="252" x2="1064" y2="259"/>
+  </g>
+  <text x="1055" y="303" font-size="20" font-weight="700" fill="#0F172A" text-anchor="middle">OpenSearch</text>
+  <text x="1055" y="326" font-size="13" fill="#64748B" text-anchor="middle">search + storage</text>
+  <text x="1055" y="344" font-size="13" fill="#64748B" text-anchor="middle">full-text + filters</text>
+
+  <!-- Dead-letter queue -->
+  <line x1="755" y1="362" x2="755" y2="416" stroke="#C0392B" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#arrowRed)"/>
+  <text x="767" y="394" font-size="12" fill="#C0392B">bad messages</text>
+  <rect x="668" y="420" width="174" height="60" rx="12" fill="#FDECEA" stroke="#C0392B" stroke-width="1.6"/>
+  <text x="755" y="446" font-size="15" font-weight="700" fill="#0F172A" text-anchor="middle">logs-dlq</text>
+  <text x="755" y="466" font-size="12.5" fill="#64748B" text-anchor="middle">dead-letter queue</text>
+
+  <!-- Concepts footer -->
+  <rect x="60" y="524" width="1080" height="48" rx="12" fill="#F8FAFC" stroke="#E2E8F0"/>
+  <text x="600" y="553" font-size="15" fill="#475569" text-anchor="middle" font-weight="500">Decoupling&#160;&#160;·&#160;&#160;Backpressure&#160;&#160;·&#160;&#160;At-least-once delivery&#160;&#160;·&#160;&#160;Dead-letter queue&#160;&#160;·&#160;&#160;Horizontal scaling</text>
+</svg>
